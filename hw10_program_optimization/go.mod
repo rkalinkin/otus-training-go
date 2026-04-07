@@ -1,4 +1,4 @@
-module github.com/fixme_my_friend/hw10_program_optimization
+module github.com/rkalinkin/otus-training-go/hw10_program_optimization
 
 go 1.23
 
