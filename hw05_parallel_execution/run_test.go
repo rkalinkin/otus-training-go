@@ -68,3 +68,93 @@ func TestRun(t *testing.T) {
 		require.LessOrEqual(t, int64(elapsedTime), int64(sumTime/2), "tasks were run sequentially?")
 	})
 }
+
+func TestRunWithoutSleep(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	t.Run("concurrency test without sleep", func(t *testing.T) {
+		tasksCount := 10
+		workersCount := 5
+		maxErrorsCount := 1
+
+		var startedTasks int32
+
+		startCh := make(chan struct{})
+		tasks := make([]Task, 0, tasksCount)
+
+		for range tasksCount {
+			tasks = append(tasks, func() error {
+				atomic.AddInt32(&startedTasks, 1)
+				<-startCh
+				return nil
+			})
+		}
+
+		done := make(chan error)
+		go func() {
+			done <- Run(tasks, workersCount, maxErrorsCount)
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		started := atomic.LoadInt32(&startedTasks)
+		require.GreaterOrEqual(t, started, int32(2),
+			"tasks should be started concurrently by multiple workers, got %d", started)
+
+		close(startCh)
+
+		err := <-done
+		require.NoError(t, err)
+
+		require.Equal(t, int32(tasksCount), atomic.LoadInt32(&startedTasks), "all tasks should be started")
+	})
+}
+
+func TestRunWithZeroMaxErrors(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	t.Run("zero max errors should ignore errors", func(t *testing.T) {
+		tasksCount := 20
+		tasks := make([]Task, 0, tasksCount)
+
+		var runTasksCount int32
+
+		for i := range tasksCount {
+			err := fmt.Errorf("error from task %d", i)
+			tasks = append(tasks, func() error {
+				time.Sleep(time.Millisecond * time.Duration(rand.Intn(50)))
+				atomic.AddInt32(&runTasksCount, 1)
+				return err
+			})
+		}
+
+		workersCount := 5
+		maxErrorsCount := 0
+
+		err := Run(tasks, workersCount, maxErrorsCount)
+		require.NoError(t, err)
+		require.Equal(t, int32(tasksCount), runTasksCount, "all tasks should be executed even with errors when m=0")
+	})
+
+	t.Run("negative max errors should ignore errors", func(t *testing.T) {
+		tasksCount := 20
+		tasks := make([]Task, 0, tasksCount)
+
+		var runTasksCount int32
+
+		for i := range tasksCount {
+			err := fmt.Errorf("error from task %d", i)
+			tasks = append(tasks, func() error {
+				time.Sleep(time.Millisecond * time.Duration(rand.Intn(50)))
+				atomic.AddInt32(&runTasksCount, 1)
+				return err
+			})
+		}
+
+		workersCount := 5
+		maxErrorsCount := -1
+
+		err := Run(tasks, workersCount, maxErrorsCount)
+		require.NoError(t, err)
+		require.Equal(t, int32(tasksCount), runTasksCount, "all tasks should be executed even with errors when m<0")
+	})
+}
