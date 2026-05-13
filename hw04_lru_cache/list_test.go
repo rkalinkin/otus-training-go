@@ -49,3 +49,62 @@ func TestList(t *testing.T) {
 		require.Equal(t, []int{70, 80, 60, 40, 10, 30, 50}, elems)
 	})
 }
+
+func TestAdditionalListOperations(t *testing.T) {
+	t.Run("push front back", func(t *testing.T) {
+		l := NewList()
+
+		l.PushFront(1)
+		l.PushBack(2)
+		l.PushFront(3)
+
+		require.Equal(t, 3, l.Len())
+		require.Equal(t, 3, l.Front().Value)
+		require.Equal(t, 1, l.Front().Next.Value)
+		require.Equal(t, 2, l.Back().Value)
+	})
+
+	t.Run("move to front", func(t *testing.T) {
+		l := NewList()
+
+		l.PushBack(1)
+		middle := l.PushBack(2)
+		l.PushBack(3)
+
+		require.Equal(t, 1, l.Front().Value)
+		require.Equal(t, 3, l.Back().Value)
+
+		l.MoveToFront(middle)
+
+		require.Equal(t, 2, l.Front().Value)
+		require.Equal(t, 3, l.Back().Value)
+		require.Equal(t, 3, l.Len())
+	})
+
+	t.Run("remove head", func(t *testing.T) {
+		l := NewList()
+		head := l.PushFront(1)
+		l.PushBack(2)
+
+		l.Remove(head)
+
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, 2, l.Front().Value)
+		require.Equal(t, 2, l.Back().Value)
+		require.Nil(t, head.Prev)
+		require.Nil(t, head.Next)
+	})
+
+	t.Run("remove tail", func(t *testing.T) {
+		l := NewList()
+		l.PushBack(1)
+		tail := l.PushBack(2)
+
+		l.Remove(tail)
+
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, 1, l.Back().Value)
+		require.Nil(t, tail.Prev)
+		require.Nil(t, tail.Next)
+	})
+}
