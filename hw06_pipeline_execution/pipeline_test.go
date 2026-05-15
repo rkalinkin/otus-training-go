@@ -145,6 +145,79 @@ func TestAllStageStop(t *testing.T) {
 		wg.Wait()
 
 		require.Len(t, result, 0)
-
 	})
+}
+
+func TestEmptyPipeline(t *testing.T) {
+	in := make(Bi)
+	go func() {
+		in <- 1
+		in <- 2
+		close(in)
+	}()
+
+	result := make([]any, 0)
+	for val := range ExecutePipeline(in, nil) {
+		result = append(result, val)
+	}
+
+	require.Equal(t, []any{1, 2}, result)
+}
+
+func TestSingleStage(t *testing.T) {
+	stage := func(in In) Out {
+		out := make(Bi)
+		go func() {
+			defer close(out)
+			for v := range in {
+				out <- "processed_" + strconv.Itoa(v.(int))
+			}
+		}()
+		return out
+	}
+
+	in := make(Bi)
+	go func() {
+		in <- 1
+		in <- 2
+		close(in)
+	}()
+
+	result := make([]string, 0)
+	for val := range ExecutePipeline(in, nil, stage) {
+		result = append(result, val.(string))
+	}
+
+	require.Equal(t, []string{"processed_1", "processed_2"}, result)
+}
+
+func TestPipelineWithImmediateDone(t *testing.T) {
+	stage := func(in In) Out {
+		out := make(Bi)
+		go func() {
+			defer close(out)
+			time.Sleep(50 * time.Millisecond)
+			for v := range in {
+				out <- v
+			}
+		}()
+		return out
+	}
+
+	in := make(Bi)
+	done := make(Bi)
+	close(done)
+	go func() {
+		in <- 1
+		in <- 2
+		time.Sleep(10 * time.Millisecond)
+		close(in)
+	}()
+
+	result := make([]any, 0)
+	for val := range ExecutePipeline(in, done, stage) {
+		result = append(result, val)
+	}
+
+	require.Len(t, result, 0)
 }
